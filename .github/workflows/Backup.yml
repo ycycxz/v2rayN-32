@@ -1,0 +1,58 @@
+name: Backup
+on:
+  schedule:
+    - cron: "10 10 1-31/2 * *"
+  push:
+    branches:
+      - main
+
+env:
+  repos: "2dust/v2rayN"
+
+jobs:
+  build:
+    name: Backup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backup
+        run: |
+          rm -rf *
+          latest_version=$(curl -4sL https://data.jsdelivr.com/v1/package/gh/$repos | jq -r .versions[0])
+          echo $latest_version
+
+          wget -q https://github.com/$repos/releases/download/$latest_version/v2rayN.zip &> /dev/null
+          for z in *.zip
+            do
+              unzip $z
+          done
+
+          rm *.zip
+          wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/Rules/raw/main/geoip.dat &> /dev/null
+          wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/Rules/raw/main/geosite.dat &> /dev/null
+          wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/Xray-core/raw/main/xray.exe &> /dev/null
+          #wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/v2ray-core/raw/main/v2ctl.exe &> /dev/null
+          wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/v2ray-core/raw/main/v2ray.exe &> /dev/null
+          wget -qP $GITHUB_WORKSPACE/v2rayN https://github.com/googleians/v2ray-core/raw/main/wv2ray.exe &> /dev/null
+          
+            
+          7z -v20m a -t7z v2rayN-$(date +"%Y-%m-%d").7z v2rayN/*
+          rm -rf v2rayN
+
+          echo -e "|    Size   |     jsDelivr  | FastGit |\n|  ---  |  ---  |  ---  |" > README.md
+          shopt -s extglob
+          for file in $(ls !(*.md)); do
+          echo "| $(expr $(wc -c < $file )  / 1000000  | numfmt --to=iec-i --suffix=MB --format="%f") | [$file](https://cdn.jsdelivr.net/gh/${{ github.repository }}@main/$file) | [$file](https://raw.fastgit.org/${{ github.repository }}/main/$file) |" >> README.md
+          done
+
+          mkdir -p .github/workflows
+          wget -qO .github/workflows/Backup.yml https://github.com/${{ github.repository }}/raw/main/.github/workflows/Backup.yml &> /dev/null
+
+          git config --global init.defaultBranch main
+          git init
+          git add .
+          git config user.name "googleians"
+          git config user.email "77716481+googleians@users.noreply.github.com"
+          git commit -m "Version ${latest_version}"
+          git tag -a "$(date +"%Y-%m-%d")" -m "$(date +"%Y-%m-%d")"
+          git remote add release "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -u --follow-tags release main -f
